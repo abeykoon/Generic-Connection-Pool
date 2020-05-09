@@ -30,8 +30,9 @@ public class PoolLog {
 
     /**
      * Constructor log PoolLog
+     *
      * @param poolName name of the pool
-     * @param clazz Class to refer when logging
+     * @param clazz    Class to refer when logging
      */
     public PoolLog(String poolName, Class clazz) {
         this.log = LogFactory.getLog(clazz);
@@ -54,7 +55,17 @@ public class PoolLog {
 
     public void error(Object o, Throwable throwable) {
         //log.error("[" + poolName + "] " + o, throwable);
-        System.out.println("[" + poolName + "] " + o +  throwable.getMessage());
+        System.out.println("[" + poolName + "] " + o + throwable.getMessage());
+    }
+
+    public void warn(Object o) {
+        //log.warn("[" + poolName + "] " + o);
+        System.out.println("[" + poolName + "] " + o);
+    }
+
+    public void warn(Object o, Throwable throwable) {
+        //log.warn("[" + poolName + "] " + o, throwable);
+        System.out.println("[" + poolName + "] " + o + throwable.getMessage());
     }
 
     public void info(Object o) {

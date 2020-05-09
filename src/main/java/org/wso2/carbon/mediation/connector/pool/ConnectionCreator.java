@@ -78,25 +78,34 @@ public class ConnectionCreator<T> implements Callable<Void> {
             CURRENT_RETRY = CURRENT_RETRY + 1;
 
             try {
-                //TODO: here we assume pool will not exceed its size when insert. Otherwise it may lead endless loop
+                /*
+                 * here when adding if queue is full, upon illegalStateException
+                 * thrown it will retry again with the same exponential backoff logic
+                 */
                 boolean added = connectionAdder.add((connectionFactory.createNew()));
                 if (added) {
                     break;
                 } else {
-                    if ((MAX_RETRIES != -1) && CURRENT_RETRY > MAX_RETRIES) {
-                        log.error("Could not create connection after max retries " + MAX_RETRIES
-                                + ". Giving up.");
-                    }
+                    log.error("Could not add the created connection to the pool."
+                            + "Retry Iteration = " + CURRENT_RETRY
+                            + ". Max number of retries = " + MAX_RETRIES);
                 }
             } catch (Throwable e) {     //loop should not break upon any type of exception
                 log.error("Error while creating connection. Retry Iteration = "
-                        + CURRENT_RETRY + ". Max number of retries = " + MAX_RETRIES);
+                        + CURRENT_RETRY + ". Max number of retries = " + MAX_RETRIES, e);
+            }
+
+            //termination logic
+            if ((MAX_RETRIES != -1) && CURRENT_RETRY == MAX_RETRIES) {
+                log.error("Could not create connection after max retries " + MAX_RETRIES
+                        + ". Giving up.");
+                break;
             }
 
             int finalWaitTime = getTimeToWait();
 
             if (log.isDebugOn()) {
-                log.debug("Next retry to create connection in " + (finalWaitTime) + "seconds.");
+                    log.debug("Next retry to create connection in " + (finalWaitTime) + " seconds.");
             }
 
             TimeUnit.SECONDS.sleep(finalWaitTime);
@@ -128,7 +137,7 @@ public class ConnectionCreator<T> implements Callable<Void> {
             log.debug("Retry time calculation detail: [primaryWaitInterval=" + primaryWaitInterval + "]"
                     + " , [randomTime=" + randomTime + "]"
                     + " , [isToAddRandomTime=" + isToAddRandomTime + "]"
-                    + " . [finalWaitTime=" + finalWaitTime + "]");
+                    + " , [finalWaitTime=" + finalWaitTime + "]");
         }
 
         return Math.round(finalWaitTime);

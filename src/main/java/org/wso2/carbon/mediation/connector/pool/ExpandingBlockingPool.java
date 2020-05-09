@@ -61,7 +61,7 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
      * <code>open sockets = connections in the pool + connections acquired by apps</code>
      * this guarantees max number of sockets we can open
      */
-    private Semaphore createPermit = new Semaphore(maxSize);
+    private Semaphore createPermit;
 
     //TTL of the connections (seconds)
     private int timeToLive;
@@ -146,21 +146,30 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
         this.connectionFactory = connectionFactory;
         this.validator = validator;
 
-        connections = new LinkedBlockingQueue<ExpirableConnection>(initialSize);
+        this.createPermit = new Semaphore(maxSize);
+
+        connections = new LinkedBlockingQueue<ExpirableConnection>(maxSize);
 
         initializeConnections();
 
         //Once every 30 sec try to cleanup expired connections
+        //TODO: decide values
         connectionExpireExecutor.scheduleAtFixedRate(new ConnectionExpirationTask(),
-                60, 30, TimeUnit.SECONDS);
+                15, 10, TimeUnit.SECONDS);
 
         shutdownCalled = false;
     }
 
     public T get(long timeOut, TimeUnit unit) {
+        if (log.isDebugOn()) {
+            log.debug("Connection get request submitted. Thread id = "
+                    + Thread.currentThread().getId() + " , [poolSize = " + connections.size()
+                    + ", remaining permits= " + createPermit.availablePermits() + "]");
+        }
         if (!shutdownCalled) {
             ExpirableConnection expirableConnection = null;
             boolean timeUtilized = false;
+            int connectionPoolSize = 0;
             try {
                 readLock.lock();
 
@@ -169,11 +178,15 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
                     requestNewConnectionCreate();
                 }
 
+                //need to check size before get
+                connectionPoolSize = connections.size();
+
                 expirableConnection = connections.poll();
                 if (expirableConnection == null) {
                     expirableConnection = connections.poll(timeOut, unit);
                     timeUtilized = true;
                 }
+
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
             } finally {
@@ -181,29 +194,40 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
             }
 
             if (expirableConnection != null) {
-                T connection = expirableConnection.getConnection();
-                if (isValid(connection)) {
-                    return connection;
-                } else {
+                if (connectionPoolSize > initialSize && expirableConnection.isExpired()) {
+                    handleExpiredConnection(expirableConnection);
+                    if (timeUtilized) {
+                        return null;    //we have no time for another try
+                    } else {
+                        return get(timeOut, unit);
+                    }
+                } else if (!isValid(expirableConnection.getConnection())) {
                     if (log.isDebugOn()) {
                         log.debug("Test on borrow failed for expirableConnection");
                     }
                     //TODO: can this block the call by any chance?
-                    handleInvalidConnection(connection);
+                    handleInvalidConnection(expirableConnection.getConnection());
+                    if (timeUtilized) {      //we have no time to get and validate another
+                        return null;
+                    } else {
+                        return get(timeOut, unit);
+                    }
+                } else {
+                    return expirableConnection.getConnection();
                 }
             } else {
-                if (timeUtilized) {      //we have no time to get and validate another
-                    return null;
-                } else {
-                    get(timeOut, unit);
-                }
+                return null;
             }
-
         }
         throw new IllegalStateException("Connection pool is already shutdown");
     }
 
     public T get() {
+        if (log.isDebugOn()) {
+            log.debug("Connection get request submitted. Thread id = "
+                    + Thread.currentThread().getId() + " , [poolSize = " + connections.size()
+                    + ", remaining permits= " + createPermit.availablePermits() + "]");
+        }
         return testAndGetConnection();
     }
 
@@ -214,9 +238,7 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
 
     @Override
     protected void returnToPool(T connection) {
-        if (validator.isValid(connection)) {
-            connectionReturnerExecutor.submit(new ExpandingBlockingPool.ConnectionReturner(connections, connection));
-        }
+        connectionReturnerExecutor.submit(new ExpandingBlockingPool.ConnectionReturner(connections, connection));
     }
 
     @Override
@@ -238,11 +260,16 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
      */
     private void initializeConnections() {
         for (int i = 0; i < initialSize; i++) {
-            T connection = connectionFactory.createNew();
-            connections.add(new ExpirableConnection(connection));
+            boolean hasPermit = createPermit.tryAcquire();
+            if (hasPermit) {
+                T connection = connectionFactory.createNew();
+                connections.add(new ExpirableConnection(connection));
+            } else {
+                throw new IllegalStateException("Initialization error. Max Size < Initial Size");
+            }
         }
         if (log.isDebugOn()) {
-            log.debug("Connection pool initialized with" + initialSize + " connections.");
+            log.debug("Connection pool initialized with " + initialSize + " connections.");
         }
     }
 
@@ -255,10 +282,13 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
      * @return Validated connection
      */
     private T testAndGetConnection() {
+        if (log.isDebugOn()) {
+            log.debug("Trying to get a connection from pool.");
+        }
         if (!shutdownCalled) {
             ExpirableConnection expirableConnection = null;
+            int connectionPoolSize = 0;
             try {
-                //TODO: we need to trigget connection creation as applicable (use requestNewConnectionCreate() but should not create namy tasks without check)
                 readLock.lock();
                 ExpirableConnection nextConnection = connections.peek();
                 if (nextConnection == null) {
@@ -273,6 +303,7 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
                  * Even requested connection is grabbed by a different request, has to wait for a connection
                  */
                 expirableConnection = connections.take();
+                connectionPoolSize = connections.size();
 
             } catch (InterruptedException ie) {
                 log.error("Thread " + Thread.currentThread().getId() + " could not obtain a expirableConnection", ie);
@@ -281,23 +312,22 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
                 readLock.unlock();
             }
             //TODO: if thread is interrupted what happens? Should we return null or try recursively?
-            /*
-             * There is no need to check if connection
-             * is expired (sat too long in the pool).
-             * As long as it is valid it is fine.
-             */
+
             if (expirableConnection != null) {
-                T connection = expirableConnection.getConnection();
-                if (isValid(connection)) {
-                    return connection;
-                } else {
+                if (connectionPoolSize > initialSize && expirableConnection.isExpired()) {
+                    handleExpiredConnection(expirableConnection);
+                    //recursively try to get a expirableConnection
+                    return testAndGetConnection();
+                } else if (!isValid(expirableConnection.getConnection())) {
                     if (log.isDebugOn()) {
                         log.debug("Test on borrow failed for expirableConnection");
                     }
                     //TODO: can this block the call by any chance?
-                    handleInvalidConnection(connection);
+                    handleInvalidConnection(expirableConnection.getConnection());
                     //recursively try to get a expirableConnection
                     return testAndGetConnection();
+                } else {
+                    return expirableConnection.getConnection();
                 }
             }
             return null;
@@ -322,6 +352,20 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
             log.debug("Connection creation request for invalidated "
                     + "connection is not made");
         }
+    }
+
+    /**
+     * Handle expired connection
+     *
+     * @param connection expired connection
+     */
+    private void handleExpiredConnection(ExpirableConnection connection) {
+        //TODO: this may throw exceptions. Log connection ID
+        if (log.isDebugOn()) {
+            log.debug("Handling expired connection " + connection);
+        }
+        validator.invalidate(connection.getConnection());
+        createPermit.release();
     }
 
     /**
@@ -398,7 +442,6 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
      * Represents how connection inserts are done to the pool
      */
     private class ExpirableConnectionAdder implements PoolConnectionAdder<T> {
-        //TODO: do we need to acquire a write lock? Also check size and giveup
         public boolean add(T connection) {
             boolean success = connections.add(new ExpirableConnection(connection));
             if (success) {
@@ -468,6 +511,9 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
 
         private void checkAndRemoveExpiredConnections() {
             try {
+                if (log.isDebugOn()) {
+                    log.debug("Expired connection checker running...");
+                }
                 writeLock.lock();
                 //get a snapshot of the pool objects, sort and remove expired connections
                 LinkedList<ExpirableConnection> cloneOfPool = new LinkedList<ExpirableConnection>(connections);
@@ -477,8 +523,13 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
                     if (expirableConnection.isExpired()) {
                         boolean removed = connections.remove(expirableConnection);
                         if (removed) {
-                            //TODO: we can permit another connection
                             validator.invalidate(expirableConnection.getConnection());
+                            //TODO: connection id?
+                            if (log.isDebugOn()) {
+                                log.debug("Connection expired " + expirableConnection);
+                            }
+                            //we can permit another connection
+                            createPermit.release();
                         } else {
                             log.error("Expired connection is not in the pool to remove");
                         }

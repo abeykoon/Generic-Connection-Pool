@@ -100,6 +100,10 @@ public interface Pool<T> {
          * the pool will want to close the connections.
          * This is done via the
          * <code>invalidate()</code> method.
+         * <p>
+         * NOTE: Make sure this does not throw exceptions.
+         * Implementation should handle/log any errors
+         * </p>
          *
          * @param t the object to cleanup
          */

@@ -105,12 +105,35 @@ public final class BoundedBlockingPool<T> extends AbstractGenericPool<T> impleme
     }
 
     public T get(long timeOut, TimeUnit unit) throws InterruptedException {
+        if (log.isDebugOn()) {
+            log.debug("Connection get request submitted. Thread id = " + Thread.currentThread().getId());
+        }
         if (!shutdownCalled) {
             T connection = null;
+            boolean timeUtilized = false;
             try {
-                connection = connections.poll(timeOut, unit);
-                return connection;
+                connection = connections.poll();
+                if (connection == null) {
+                    connection = connections.poll(timeOut, unit);
+                    timeUtilized = true;
+                }
+                if (isValid(connection)) {
+                    return connection;
+                } else {
+                    if (log.isDebugOn()) {
+                        log.debug("Test on borrow failed for connection");
+                    }
+                    if (timeUtilized) {
+                        return null;
+                    } else {
+                        handleInvalidConnection(connection);
+                        //recursively try to get a connection
+                        return get(timeOut, unit);
+                    }
+                }
+
             } catch (InterruptedException ie) {
+                log.error("Application thread " + Thread.currentThread().getId() + "is interrupted.", ie);
                 Thread.currentThread().interrupt();
             }
             return connection;
@@ -119,6 +142,9 @@ public final class BoundedBlockingPool<T> extends AbstractGenericPool<T> impleme
     }
 
     public T get() {
+        if (log.isDebugOn()) {
+            log.debug("Connection get request submitted. Thread id = " + Thread.currentThread().getId());
+        }
         return testAndGetConnection();
     }
 
@@ -129,9 +155,7 @@ public final class BoundedBlockingPool<T> extends AbstractGenericPool<T> impleme
 
     @Override
     protected void returnToPool(T connection) {
-        if (validator.isValid(connection)) {
-            connectionReturnerExecutor.submit(new ConnectionReturner(connections, connection));
-        }
+        connectionReturnerExecutor.submit(new ConnectionReturner(connections, connection));
     }
 
     @Override
@@ -156,7 +180,7 @@ public final class BoundedBlockingPool<T> extends AbstractGenericPool<T> impleme
             connections.add(connectionFactory.createNew());
         }
         if (log.isDebugOn()) {
-            log.debug("Connection pool initialized with" + size + " connections.");
+            log.debug("Connection pool initialized with " + size + " connections.");
         }
     }
 
@@ -168,6 +192,9 @@ public final class BoundedBlockingPool<T> extends AbstractGenericPool<T> impleme
      * @return Validated connection
      */
     private T testAndGetConnection() {
+        if (log.isDebugOn()) {
+            log.debug("Trying to get a connection from pool.");
+        }
         if (!shutdownCalled) {
             T connection = null;
             try {
@@ -186,7 +213,6 @@ public final class BoundedBlockingPool<T> extends AbstractGenericPool<T> impleme
                 //recursively try to get a connection
                 return testAndGetConnection();
             }
-
         }
         throw new IllegalStateException("Object pool is already shutdown");
     }
