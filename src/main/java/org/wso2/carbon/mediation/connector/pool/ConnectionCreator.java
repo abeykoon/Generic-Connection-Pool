@@ -20,7 +20,6 @@ package org.wso2.carbon.mediation.connector.pool;
 import org.wso2.carbon.mediation.connector.utils.PoolLog;
 
 import java.util.Random;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -56,10 +55,10 @@ public class ConnectionCreator<T> implements Callable<Void> {
     private PoolConnectionAdder connectionAdder;
     private ConnectionFactory<T> connectionFactory;
 
-    public ConnectionCreator(String poolName,
-                             PoolConnectionAdder connectionAdder,
-                             ConnectionFactory<T> connectionFactory,
-                             Pool.ConnectionCreatorResiliencyParams params) {
+    ConnectionCreator(String poolName,
+                      PoolConnectionAdder connectionAdder,
+                      ConnectionFactory<T> connectionFactory,
+                      Pool.ConnectionCreatorResiliencyParams params) {
 
         this.log = new PoolLog(poolName, ConnectionCreator.class);
         this.CURRENT_RETRY = 0;
@@ -90,7 +89,7 @@ public class ConnectionCreator<T> implements Callable<Void> {
                             + "Retry Iteration = " + CURRENT_RETRY
                             + ". Max number of retries = " + MAX_RETRIES);
                 }
-            } catch (Throwable e) {     //loop should not break upon any type of exception
+            } catch (Exception e) {     //loop should not break upon any type of exception
                 log.error("Error while creating connection. Retry Iteration = "
                         + CURRENT_RETRY + ". Max number of retries = " + MAX_RETRIES, e);
             }
@@ -105,7 +104,7 @@ public class ConnectionCreator<T> implements Callable<Void> {
             int finalWaitTime = getTimeToWait();
 
             if (log.isDebugOn()) {
-                    log.debug("Next retry to create connection in " + (finalWaitTime) + " seconds.");
+                log.debug("Next retry to create connection in " + (finalWaitTime) + " seconds.");
             }
 
             TimeUnit.SECONDS.sleep(finalWaitTime);

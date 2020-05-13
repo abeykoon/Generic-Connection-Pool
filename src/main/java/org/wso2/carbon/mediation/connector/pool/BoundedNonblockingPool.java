@@ -25,7 +25,7 @@ import java.util.concurrent.Semaphore;
 /**
  * Implementation of non-blocking bounded pool
  */
-public class BoundedNonblockingPool<T> extends AbstractGenericPool <T> {
+public class BoundedNonblockingPool<T> extends AbstractGenericPool<T> {
 
     //Size of the pool
     private int size;
@@ -33,8 +33,8 @@ public class BoundedNonblockingPool<T> extends AbstractGenericPool <T> {
     //Keeps pooled connections
     private Queue<T> connections;
 
-    private ConnectionValidator <T> validator;
-    private ConnectionFactory <T> connectionFactory;
+    private ConnectionValidator<T> validator;
+    private ConnectionFactory<T> connectionFactory;
 
     //TODO: understand why a Semaphore is used and if init is OK
     private Semaphore permits = new Semaphore(1);
@@ -78,7 +78,7 @@ public class BoundedNonblockingPool<T> extends AbstractGenericPool <T> {
 
     @Override
     protected void handleInvalidReturn(T connection) {
-
+        validator.invalidate(connection);
     }
 
     @Override

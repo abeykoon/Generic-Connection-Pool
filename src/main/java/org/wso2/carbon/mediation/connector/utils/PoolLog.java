@@ -40,8 +40,8 @@ public class PoolLog {
     }
 
     public boolean isDebugOn() {
-        //return log.isDebugEnabled();
-        return true;
+        return log.isDebugEnabled();
+        //return true;
     }
 
     public boolean isTraceOn() {
@@ -49,42 +49,42 @@ public class PoolLog {
     }
 
     public void error(Object o) {
-        //log.error("[" + poolName + "] " + o);
-        System.out.println("[" + poolName + "] " + o);
+        log.error("[" + poolName + "] " + o);
+        //System.out.println("[" + poolName + "] " + o);
     }
 
     public void error(Object o, Throwable throwable) {
-        //log.error("[" + poolName + "] " + o, throwable);
-        System.out.println("[" + poolName + "] " + o + throwable.getMessage());
+        log.error("[" + poolName + "] " + o, throwable);
+        //System.out.println("[" + poolName + "] " + o + throwable.getMessage());
     }
 
     public void warn(Object o) {
-        //log.warn("[" + poolName + "] " + o);
-        System.out.println("[" + poolName + "] " + o);
+        log.warn("[" + poolName + "] " + o);
+        //System.out.println("[" + poolName + "] " + o);
     }
 
     public void warn(Object o, Throwable throwable) {
-        //log.warn("[" + poolName + "] " + o, throwable);
-        System.out.println("[" + poolName + "] " + o + throwable.getMessage());
+        log.warn("[" + poolName + "] " + o, throwable);
+        //System.out.println("[" + poolName + "] " + o + throwable.getMessage());
     }
 
     public void info(Object o) {
-        //log.info("[" + poolName + "] " + o);
-        System.out.println("[" + poolName + "] " + o);
+        log.info("[" + poolName + "] " + o);
+        //System.out.println("[" + poolName + "] " + o);
     }
 
     public void info(Object o, Throwable throwable) {
-        //log.info("[" + poolName + "] " + o, throwable);
-        System.out.println("[" + poolName + "] " + o + throwable.getMessage());
+        log.info("[" + poolName + "] " + o, throwable);
+        //System.out.println("[" + poolName + "] " + o + throwable.getMessage());
     }
 
     public void debug(Object o) {
-        //log.debug("[" + poolName + "] " + o);
-        System.out.println("[" + poolName + "] " + o);
+        log.debug("[" + poolName + "] " + o);
+        //System.out.println("[" + poolName + "] " + o);
     }
 
     public void trace(Object o) {
-        //log.trace("[" + poolName + "] " + o);
-        System.out.println("[" + poolName + "] " + o);
+        log.trace("[" + poolName + "] " + o);
+        //System.out.println("[" + poolName + "] " + o);
     }
 }

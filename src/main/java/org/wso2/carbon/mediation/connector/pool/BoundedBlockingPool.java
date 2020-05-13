@@ -289,7 +289,7 @@ public final class BoundedBlockingPool<T> extends AbstractGenericPool<T> impleme
         private BlockingQueue<E> queue;
         private E connectionToReturn;
 
-        public ConnectionReturner(BlockingQueue<E> queue, E connectionToReturn) {
+        ConnectionReturner(BlockingQueue<E> queue, E connectionToReturn) {
             this.queue = queue;
             this.connectionToReturn = connectionToReturn;
         }

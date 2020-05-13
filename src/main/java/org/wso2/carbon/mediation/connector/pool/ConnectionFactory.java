@@ -31,6 +31,6 @@ public interface ConnectionFactory<T> {
      *
      * @return T an new instance of the connection of type T
      */
-    public T createNew();
+    T createNew();
 
 }

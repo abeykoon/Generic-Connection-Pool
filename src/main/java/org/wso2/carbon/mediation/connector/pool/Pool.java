@@ -52,7 +52,7 @@ public interface Pool<T> {
      *
      * @return T one of the pooled objects.
      */
-    public T get();
+    T get();
 
     /**
      * Releases the object and puts it back to the pool.
@@ -63,7 +63,7 @@ public interface Pool<T> {
      *
      * @param t the object to return to the pool
      */
-    public void release(T t);
+    void release(T t);
 
     /**
      * Shuts down the pool. In essence this call will not
@@ -73,7 +73,7 @@ public interface Pool<T> {
      * via the < code >invalidate()< /code >
      * method of the {@link ConnectionValidator} interface.
      */
-    public void shutdown();
+    void shutdown();
 
     /**
      * Represents the functionality to
@@ -82,7 +82,7 @@ public interface Pool<T> {
      *
      * @param <T> the type of objects to validate and cleanup.
      */
-    public static interface ConnectionValidator<T> {
+    interface ConnectionValidator<T> {
         /**
          * Checks whether the object is valid.
          *
@@ -90,7 +90,7 @@ public interface Pool<T> {
          * @return <code>true</code>
          * if the object is valid else <code>false</code>.
          */
-        public boolean isValid(T t);
+        boolean isValid(T t);
 
         /**
          * Performs any cleanup activities
@@ -107,13 +107,21 @@ public interface Pool<T> {
          *
          * @param t the object to cleanup
          */
-        public void invalidate(T t);
+        void invalidate(T t);
+
+        /**
+         * Get Id of the connection.
+         *
+         * @param t the object to check
+         * @return Id of the object
+         */
+        String getConnectionId(T t);
     }
 
     /**
      * Helper class to pass ConnectionCreator Resiliency parameters
      */
-    public class ConnectionCreatorResiliencyParams {
+    class ConnectionCreatorResiliencyParams {
         /**
          * @param initialInterval Base interval (seconds). Retry will start from this interval
          * @param multiplier      Interval will increase by this factor for each try

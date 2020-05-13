@@ -470,7 +470,7 @@ public final class ExpandingBlockingPool<T> extends AbstractGenericPool<T> imple
         private BlockingQueue<ExpirableConnection> poolReference;
         private T connectionToReturn;
 
-        public ConnectionReturner(BlockingQueue<ExpirableConnection> poolReference, T connectionToReturn) {
+        ConnectionReturner(BlockingQueue<ExpirableConnection> poolReference, T connectionToReturn) {
             this.poolReference = poolReference;
             this.connectionToReturn = connectionToReturn;
         }

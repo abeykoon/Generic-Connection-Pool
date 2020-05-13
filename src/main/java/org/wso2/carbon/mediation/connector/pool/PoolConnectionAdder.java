@@ -22,7 +22,6 @@ package org.wso2.carbon.mediation.connector.pool;
  * Represents the mechanism how connection is added to the pool.
  * Different pool implementation may require to add metadata,
  * acquire locks before inserting connection
- *
  */
 public interface PoolConnectionAdder<T> {
 
